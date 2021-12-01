@@ -1,7 +1,7 @@
 import path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import csvToJson from 'csvtojson/v2';
-import { pipeline, Transform } from 'stream';
+import { Transform } from 'stream';
 
 const inputFilePath = path.join(__dirname, 'csv', 'input.csv');
 const outputFilePath = path.resolve(__dirname, 'csv', 'output.txt');
@@ -9,11 +9,10 @@ const outputFilePath = path.resolve(__dirname, 'csv', 'output.txt');
 const inputStream = createReadStream(inputFilePath);
 const outputStream = createWriteStream(outputFilePath);
 const dbStream = new Transform({
-    transform: function (this, chunk, _encoding, callback) {
+    transform: function (chunk, _encoding, callback) {
         this.push(chunk);
-        new Promise((resolve) => {
-            setTimeout(resolve, 300);
-        });
+        inputStream.pause();
+        setTimeout(inputStream.resume.bind(inputStream), 100);
         callback();
     },
 });
@@ -25,7 +24,7 @@ type BookInfo = {
     Price: string;
 };
 const transformStream = new Transform({
-    transform: function (this, chunk, _encoding, callback) {
+    transform: function (chunk, _encoding, callback) {
         try {
             const bookInfo: BookInfo = JSON.parse(chunk.toString());
             const transformedChunk = `${JSON.stringify({
@@ -64,8 +63,4 @@ transformStream.on('error', (e) => {
     console.error(e);
 });
 
-pipeline(inputStream, csvToJson(), transformStream, dbStream, outputStream, (e) => {
-    if (e) {
-        console.error(e);
-    }
-});
+inputStream.pipe(csvToJson()).pipe(transformStream).pipe(dbStream).pipe(outputStream);
