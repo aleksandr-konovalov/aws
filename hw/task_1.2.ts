@@ -1,7 +1,7 @@
 import path from 'path';
 import { createReadStream, createWriteStream } from 'fs';
 import csvToJson from 'csvtojson/v2';
-import { Transform } from 'stream';
+import { Transform, pipeline } from 'stream';
 
 const inputFilePath = path.join(__dirname, 'csv', 'input.csv');
 const outputFilePath = path.resolve(__dirname, 'csv', 'output.txt');
@@ -10,10 +10,10 @@ const inputStream = createReadStream(inputFilePath);
 const outputStream = createWriteStream(outputFilePath);
 const dbStream = new Transform({
     transform: function (chunk, _encoding, callback) {
-        this.push(chunk);
-        inputStream.pause();
-        setTimeout(inputStream.resume.bind(inputStream), 100);
-        callback();
+        setTimeout(() => {
+            this.push(chunk);
+            callback();
+        }, 100);
     },
 });
 
@@ -41,26 +41,10 @@ const transformStream = new Transform({
     },
 });
 
-inputStream
-    .on('error', (e) => {
-        console.error(e);
-    })
-    .on('end', () => {
-        outputStream.end();
-        dbStream.end();
-        transformStream.end();
-    });
-
-outputStream.on('error', (e) => {
-    console.error(e);
+pipeline(inputStream, csvToJson(), transformStream, dbStream, outputStream, (e) => {
+    if (e) {
+        console.error('Pipeline failed', e);
+    } else {
+        console.log('Pipeline succeeded');
+    }
 });
-
-dbStream.on('error', (e) => {
-    console.error(e);
-});
-
-transformStream.on('error', (e) => {
-    console.error(e);
-});
-
-inputStream.pipe(csvToJson()).pipe(transformStream).pipe(dbStream).pipe(outputStream);
